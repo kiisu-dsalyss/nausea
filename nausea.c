@@ -17,8 +17,8 @@
 
 #include "config.h"
 
-static unsigned msec = 1000 / 25; /* 25 fps */
-static unsigned nsamples = 44100 * 2; /* stereo */
+static unsigned msec = 1000 / 500; /* fps */
+static unsigned nsamples = 48000 * 2; /* stereo */
 static wchar_t chbar = CHBAR;
 static wchar_t chpeak = CHPEAK;
 static wchar_t chpoint = CHPOINT;
@@ -26,9 +26,6 @@ static char *fname = "/tmp/audio.fifo";
 static char *argv0;
 static int colors;
 static int peaks;
-static int keep;
-static int left;
-static int bounce;
 static int die;
 
 struct frame {
@@ -47,23 +44,16 @@ struct frame {
 };
 
 /* Supported visualizations:
- * 1 -- spectrum
- * 2 -- wave
- * 2 -- fountain */
+ * 1 -- spectrum */
 static void draw_spectrum(struct frame *fr);
-static void draw_wave(struct frame *fr);
-static void draw_fountain(struct frame *fr);
 static struct visual {
 	void (* draw)(struct frame *fr);
 	int dft;   /* needs the DFT */
 	int color; /* supports colors */
 } visuals[] = {
 	{draw_spectrum, 1, 1},
-	{draw_wave,     0, 0},
-	{draw_fountain, 1, 1},
 };
 static int vidx = 0; /* default visual index */
-
 /* We assume the screen is 100 pixels in the y direction.
  * To follow the curses convention (0, 0) is in the top left
  * corner of the screen.  The `min' and `max' values correspond
@@ -91,11 +81,14 @@ static struct color_range {
    * COLOR_MAGENTA
    * COLOR_CYAN
    * COLOR_WHITE  */
-  
 } color_ranges[] = {
-	{ 1, 0,  20,  COLOR_RED,    -1, 0, 0 },
-	{ 2, 20, 60,  COLOR_BLUE, -1, 0, 0 },
-	{ 3, 60, 100, COLOR_CYAN,  -1, 0, 0 }
+	{ 1, 0,  5, 	COLOR_RED, 		-1, 0, 0},
+	{ 2, 5,  20,	COLOR_YELLOW, 	-1, 0, 0},
+	{ 3, 20, 40, 	COLOR_GREEN, 	-1, 0, 0},
+    { 4, 40, 72,  	COLOR_WHITE,    -1, 0, 0},
+	{ 5, 72, 85,  	COLOR_CYAN,   	-1, 0, 0},
+	{ 6, 85, 98,  	COLOR_BLUE,		-1, 0, 0},
+	{ 7, 98, 100, 	COLOR_GREEN,  	-1, 0, 0}
 };
 
 static void
@@ -104,7 +97,6 @@ clearall(struct frame *fr)
 	unsigned i;
 
 	fr->gotsamples = 0;
-
 	for (i = 0; i < nsamples / 2; i++) {
 		fr->in[i] = 0.;
 		fr->out[i] = 0. + 0. * I;
@@ -181,7 +173,6 @@ setcolor(int on, int y)
 
 	if (!colors)
 		return;
-
 	for (i = 0; i < LEN(color_ranges); i++) {
 		cr = &color_ranges[i];
 		if (y >= cr->scaled_min && y < cr->scaled_max) {
@@ -226,12 +217,12 @@ draw_spectrum(struct frame *fr)
 
 	/* take most of the left part of the band */
 #define BANDCUT 0.5
-	freqs_per_col = (nsamples / 2) / fr->width * BANDCUT;
+	freqs_per_col = (nsamples / 20) / fr->width * BANDCUT;
 #undef BANDCUT
 
 	/* scale each frequency to screen */
-#define BARSCALE 0.2
-	for (i = 0; i < nsamples / 2; i++) {
+#define BARSCALE 0.05
+	for (i = 0; i < nsamples / 1; i++) {
 		/* complex absolute value */
 		fr->res[i] = cabs(fr->out[i]);
 		/* normalize it */
@@ -272,7 +263,7 @@ draw_spectrum(struct frame *fr)
 		for (j = ybegin; j < yend; j++) {
 			move(j, i);
 			setcolor(1, j);
-			printw("%lc", chbar);
+			printw("%lc",CHBAR);
 			setcolor(0, j);
 		}
 
@@ -280,169 +271,12 @@ draw_spectrum(struct frame *fr)
 		if (peaks && fr->peak[i] != PK_HIDDEN) {
 			move(fr->peak[i], i);
 			setcolor(1, fr->peak[i]);
-			printw("%lc", chpeak);
-			setcolor(0, fr->peak[i]);
+			/* Make the peaks all matrix looking! */
+			char rndchar = 'A' + (rand() % (402+1-255))+255;
+			printw("%lc", rndchar);
+			setcolor(2, fr->peak[i]);
 		}
 	}
-	attroff(A_BOLD);
-	refresh();
-}
-
-static void
-draw_wave(struct frame *fr)
-{
-	unsigned i, j;
-	unsigned samples_per_col;
-	double pt_pos, pt_pos_prev = 0, pt_pos_mid;
-
-	/* read dimensions to catch window resize */
-	fr->width = COLS;
-	fr->height = LINES;
-
-	erase();
-
-	/* not enough samples */
-	if (fr->gotsamples < fr->width)
-		return;
-
-	samples_per_col = (fr->gotsamples / 2) / fr->width;
-
-	attron(A_BOLD);
-	for (i = 0; i < fr->width; i++) {
-		size_t y;
-
-		/* compute point position */
-		pt_pos = 0;
-		for (j = 0; j < samples_per_col; j++)
-			pt_pos += fr->in[i * samples_per_col + j];
-		pt_pos /= samples_per_col;
-		/* normalize it */
-		pt_pos /= INT16_MAX;
-		/* scale it */
-#define PTSCALE 0.8
-		pt_pos *= (fr->height / 2) * PTSCALE;
-#undef PTSCALE
-
-		/* output points */
-		y = fr->height / 2 + pt_pos; /* centering */
-		move(y, i);
-		printw("%lc", chpoint);
-
-		/* Output a helper point by averaging with the previous
-		 * position.  This creates a nice effect.  We don't care
-		 * about overlaps with the current point. */
-		pt_pos_mid = (pt_pos_prev + pt_pos) / 2.0;
-		y = fr->height / 2 + pt_pos_mid; /* centering */
-		move(y, i);
-		printw("%lc", chpoint);
-
-		pt_pos_prev = pt_pos;
-	}
-	attroff(A_BOLD);
-	refresh();
-}
-
-static void
-draw_fountain(struct frame *fr)
-{
-	unsigned i, j;
-	struct color_range *cr;
-	static int col = 0;
-	size_t bar_height = 0;
-	unsigned freqs;
-
-	/* read dimensions to catch window resize */
-	fr->width = COLS;
-	fr->height = LINES;
-
-	/* change in width needs new keep state */
-	if (fr->width != fr->width_old) {
-		fr->sav = realloc(fr->sav, fr->width * sizeof(int));
-		for (i = 0; i < fr->width; i++)
-			fr->sav[i] = fr->height;
-		fr->width_old = fr->width;
-	}
-
-	if (colors) {
-		/* scale color ranges */
-		for (i = 0; i < LEN(color_ranges); i++) {
-			cr = &color_ranges[i];
-			cr->scaled_min = cr->min * fr->height / 100;
-			cr->scaled_max = cr->max * fr->height / 100;
-		}
-	}
-
-	/* scale each frequency to screen */
-#define BARSCALE 0.3
-	for (i = 0; i < nsamples / 2; i++) {
-		/* complex absolute value */
-		fr->res[i] = cabs(fr->out[i]);
-		/* normalize it */
-		fr->res[i] /= (nsamples / 2);
-		/* scale it */
-		fr->res[i] *= fr->height * BARSCALE;
-	}
-#undef BARSCALE
-
-	/* take most of the left part of the band */
-#define BANDCUT 0.5
-	freqs = (nsamples / 2) * BANDCUT;
-#undef BANDCUT
-
-	/* compute bar height */
-	for (j = 0; j < freqs; j++)
-		bar_height += fr->res[j];
-	bar_height /= freqs;
-
-	erase();
-	attron(A_BOLD);
-
-	/* ensure we are inside the frame */
-	col %= fr->width;
-
-	for (i = 0; i < fr->width; i++) {
-		size_t ybegin, yend;
-
-		/* we draw from top to bottom */
-		if (i == col) {
-			ybegin = fr->height - MIN(bar_height, fr->height);
-			fr->sav[col] = ybegin;
-		} else {
-			if (keep)
-				ybegin = fr->sav[i];
-			else
-				ybegin = fr->sav[i]++;
-		}
-		yend = fr->height;
-
-		/* output bars */
-		for (j = ybegin; j < yend; j++) {
-			move(j, i);
-			setcolor(1, j);
-			printw("%lc", chbar);
-			setcolor(0, j);
-		}
-	}
-
-	/* current column bounces back */
-	if (bounce)
-		if (left)
-			if (col == 0)
-				left = 0;
-			else
-				col--;
-		else
-			if (col == fr->width - 1)
-				left = 1;
-			else
-				col++;
-	/* current column wraps around */
-	else
-		if (left)
-			col = (col == 0) ? fr->width - 1 : col - 1;
-		else
-			col = (col == fr->width - 1) ? 0 : col + 1;
-
 	attroff(A_BOLD);
 	refresh();
 }
@@ -452,7 +286,6 @@ initcolors(void)
 {
 	unsigned i;
 	struct color_range *cr;
-
 	start_color();
 	for (i = 0; i < LEN(color_ranges); i++) {
 		cr = &color_ranges[i];
@@ -475,7 +308,6 @@ main(int argc, char *argv[])
 	struct frame fr;
 	int vidx_prev;
 	int fd;
-
 	argv0 = argv[0];
 	while (--argc > 0 && (*++argv)[0] == '-')
 		while ((c = *++argv[0]))
@@ -488,12 +320,6 @@ main(int argc, char *argv[])
 				case '1':
 					vidx = 0;
 					break;
-				case '2':
-					vidx = 1;
-					break;
-				case '3':
-					vidx = 2;
-					break;
 				}
 				break;
 			case 'c':
@@ -501,15 +327,6 @@ main(int argc, char *argv[])
 				break;
 			case 'p':
 				peaks = 1;
-				break;
-			case 'k':
-				keep = 1;
-				break;
-			case 'l':
-				left = 1;
-				break;
-			case 'b':
-				bounce = 1;
 				break;
 			case 'h':
 				/* fall-through */
@@ -558,23 +375,8 @@ main(int argc, char *argv[])
 		case 'p':
 			peaks = !peaks;
 			break;
-		case 'k':
-			keep = !keep;
-			break;
-		case 'l':
-			left = !left;
-			break;
-		case 'b':
-			bounce = !bounce;
-			break;
 		case '1':
 			vidx = 0;
-			break;
-		case '2':
-			vidx = 1;
-			break;
-		case '3':
-			vidx = 2;
 			break;
 		case 'n':
 		case KEY_RIGHT:
