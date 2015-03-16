@@ -17,7 +17,7 @@
 
 #include "config.h"
 
-static unsigned msec = 1000 / 500; /* fps */
+static unsigned msec = 1000 / 25; /* fps */
 static unsigned nsamples = 48000 * CHANNELS; /* stereo */
 static wchar_t chbar = CHBAR;
 static wchar_t chpeak = CHPEAK;
@@ -82,13 +82,13 @@ static struct color_range {
    * COLOR_CYAN
    * COLOR_WHITE  */
 } color_ranges[] = {
-	{ 1, 0,  5, 	COLOR_RED, 		-1, 0, 0},
+	{ 1, 0,  5, 	COLOR_RED,		-1, 0, 0},
 	{ 2, 5,  20,	COLOR_YELLOW, 	-1, 0, 0},
 	{ 3, 20, 40, 	COLOR_GREEN, 	-1, 0, 0},
-	{ 4, 40, 72,  	COLOR_WHITE,    -1, 0, 0},
-	{ 5, 72, 85,  	COLOR_CYAN,   	-1, 0, 0},
+	{ 4, 40, 72,  	COLOR_WHITE,	-1, 0, 0},
+	{ 5, 72, 85,  	COLOR_CYAN,		-1, 0, 0},
 	{ 6, 85, 98,  	COLOR_BLUE,		-1, 0, 0},
-	{ 7, 98, 100, 	COLOR_GREEN,  	-1, 0, 0}
+	{ 7, 98, 100, 	COLOR_GREEN,	-1, 0, 0}
 };
 
 static void
