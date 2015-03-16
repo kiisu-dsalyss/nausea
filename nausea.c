@@ -26,6 +26,7 @@ static char *fname = "/tmp/audio.fifo";
 static char *argv0;
 static int colors;
 static int peaks;
+static int randompeaks;
 static int die;
 
 struct frame {
@@ -34,7 +35,7 @@ struct frame {
 	size_t height;
 	int *peak;
 	int *sav;
-#define PK_HIDDEN -1
+	#define PK_HIDDEN -1
 	int16_t *buf;
 	unsigned *res;
 	double *in;
@@ -263,7 +264,7 @@ draw_spectrum(struct frame *fr)
 		for (j = ybegin; j < yend; j++) {
 			move(j, i);
 			setcolor(1, j);
-			printw("%lc",CHBAR);
+			printw("%lc",chbar);
 			setcolor(0, j);
 		}
 
@@ -272,8 +273,12 @@ draw_spectrum(struct frame *fr)
 			move(fr->peak[i], i);
 			setcolor(1, fr->peak[i]);
 			/* Make the peaks all matrix looking! */
-			char rndchar = 'A' + (rand() % (402+1-255))+255;
-			printw("%lc", rndchar);
+			if (randompeaks) {
+				char rndchar = 'A' + (rand() % (402+1-255))+255;
+				printw("%lc", rndchar);
+			}
+			else
+				printw("%lc",CHPEAK);
 			setcolor(2, fr->peak[i]);
 		}
 	}
@@ -328,6 +333,9 @@ main(int argc, char *argv[])
 			case 'p':
 				peaks = 1;
 				break;
+            case 'r':
+				randompeaks = 1;
+				break;				
 			case 'h':
 				/* fall-through */
 			default:
@@ -375,6 +383,9 @@ main(int argc, char *argv[])
 		case 'p':
 			peaks = !peaks;
 			break;
+        case 'r':
+            randompeaks = !randompeaks;
+            break;			
 		case '1':
 			vidx = 0;
 			break;
