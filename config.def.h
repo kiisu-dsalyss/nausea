@@ -1,3 +1,4 @@
+#define CHANNELS 1
 #if 0
 #define CHBAR L'▮'
 #define CHPEAK L'▪'

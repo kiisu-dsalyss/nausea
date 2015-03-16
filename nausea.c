@@ -18,7 +18,7 @@
 #include "config.h"
 
 static unsigned msec = 1000 / 500; /* fps */
-static unsigned nsamples = 48000 * 2; /* stereo */
+static unsigned nsamples = 48000 * CHANNELS; /* stereo */
 static wchar_t chbar = CHBAR;
 static wchar_t chpeak = CHPEAK;
 static wchar_t chpoint = CHPOINT;
@@ -85,7 +85,7 @@ static struct color_range {
 	{ 1, 0,  5, 	COLOR_RED, 		-1, 0, 0},
 	{ 2, 5,  20,	COLOR_YELLOW, 	-1, 0, 0},
 	{ 3, 20, 40, 	COLOR_GREEN, 	-1, 0, 0},
-    { 4, 40, 72,  	COLOR_WHITE,    -1, 0, 0},
+	{ 4, 40, 72,  	COLOR_WHITE,    -1, 0, 0},
 	{ 5, 72, 85,  	COLOR_CYAN,   	-1, 0, 0},
 	{ 6, 85, 98,  	COLOR_BLUE,		-1, 0, 0},
 	{ 7, 98, 100, 	COLOR_GREEN,  	-1, 0, 0}
@@ -97,7 +97,7 @@ clearall(struct frame *fr)
 	unsigned i;
 
 	fr->gotsamples = 0;
-	for (i = 0; i < nsamples / 2; i++) {
+	for (i = 0; i < nsamples / CHANNELS; i++) {
 		fr->in[i] = 0.;
 		fr->out[i] = 0. + 0. * I;
 	}
@@ -111,13 +111,13 @@ init(struct frame *fr)
 		err(1, "open %s", fname);
 
 	fr->buf = malloc(nsamples * sizeof(int16_t));
-	fr->res = malloc(nsamples / 2 * sizeof(unsigned));
-	fr->in = malloc(nsamples / 2 * sizeof(double));
-	fr->out = malloc(nsamples / 2 * sizeof(complex));
+	fr->res = malloc(nsamples / CHANNELS * sizeof(unsigned));
+	fr->in = malloc(nsamples / CHANNELS * sizeof(double));
+	fr->out = malloc(nsamples / CHANNELS * sizeof(complex));
 
 	clearall(fr);
 
-	fr->plan = fftw_plan_dft_r2c_1d(nsamples / 2, fr->in, fr->out,
+	fr->plan = fftw_plan_dft_r2c_1d(nsamples / CHANNELS, fr->in, fr->out,
 					FFTW_ESTIMATE);
 }
 
@@ -150,13 +150,13 @@ update(struct frame *fr)
 
 	fr->gotsamples = n / sizeof(int16_t);
 
-	for (i = 0; i < nsamples / 2; i++) {
+	for (i = 0; i < nsamples / CHANNELS; i++) {
 		fr->in[i] = 0.;
-		if (i < fr->gotsamples / 2) {
-			/* average the two channels */
-			fr->in[i] = fr->buf[i * 2 + 0];
-			fr->in[i] += fr->buf[i * 2 + 1];
-			fr->in[i] /= 2.;
+		if (i < fr->gotsamples / CHANNELS) {
+			/* average the two CHANNELS */
+			fr->in[i] = fr->buf[i * CHANNELS + 0];
+			fr->in[i] += fr->buf[i * CHANNELS + 1];
+			fr->in[i] /= CHANNELS;
 		}
 	}
 
@@ -226,7 +226,7 @@ draw_spectrum(struct frame *fr)
 		/* complex absolute value */
 		fr->res[i] = cabs(fr->out[i]);
 		/* normalize it */
-		fr->res[i] /= (nsamples / 2);
+		fr->res[i] /= (nsamples / CHANNELS);
 		/* scale it */
 		fr->res[i] *= fr->height * BARSCALE;
 	}
