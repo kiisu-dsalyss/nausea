@@ -215,9 +215,9 @@ draw_spectrum(struct frame *fr)
 		}
 	}
 
-	/* take most of the left part of the band */
-#define BANDCUT 0.5
-	freqs_per_col = (nsamples / 20) / fr->width * BANDCUT;
+	/* NARROW TO GUITAR FREQUENCY RANGE */
+#define BANDCUT 0.03
+        freqs_per_col = (nsamples / CHANNELS) / fr->width * BANDCUT;
 #undef BANDCUT
 
 	/* scale each frequency to screen */
