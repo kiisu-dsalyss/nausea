@@ -27,6 +27,7 @@ static char *argv0;
 static int colors;
 static int peaks;
 static int randompeaks;
+static int monopeaks;
 static int die;
 
 struct frame {
@@ -271,7 +272,11 @@ draw_spectrum(struct frame *fr)
 		/* output peaks */
 		if (peaks && fr->peak[i] != PK_HIDDEN) {
 			move(fr->peak[i], i);
-			setcolor(1, fr->peak[i]);
+			if(monopeaks) {
+				setcolor(1, 1);
+			}
+			else 
+				setcolor(1, fr->peak[i]);
 			/* Make the peaks all matrix looking! */
 			if (randompeaks) {
 				char rndchar = 'A' + (rand() % (402+1-255))+255;
@@ -333,6 +338,9 @@ main(int argc, char *argv[])
 			case 'p':
 				peaks = 1;
 				break;
+        	case 'm':
+            	monopeaks = 1;
+            	break;
             case 'r':
 				randompeaks = 1;
 				break;				
@@ -386,6 +394,9 @@ main(int argc, char *argv[])
         case 'r':
             randompeaks = !randompeaks;
             break;			
+        case 'm':
+            monopeaks = !monopeaks;
+            break;
 		case '1':
 			vidx = 0;
 			break;
